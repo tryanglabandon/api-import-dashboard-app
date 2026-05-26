@@ -1,0 +1,2144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API 导入数据汇总</title>
+  <!-- v6 -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      background: #f0f2f5;
+      color: #333;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: white;
+      padding: 28px 40px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .header h1 { font-size: 24px; font-weight: 600; letter-spacing: 1px; }
+    .header p { margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.6); }
+
+    .main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
+
+    /* 顶部统计卡片 */
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      border-left: 4px solid #4f46e5;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+    .stat-card .label { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a2e; }
+    .stat-card .sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+    .stat-card.orange { border-left-color: #f97316; }
+    .stat-card.green  { border-left-color: #22c55e; }
+    .stat-card.blue   { border-left-color: #3b82f6; }
+    .stat-card.purple { border-left-color: #a855f7; }
+    .stat-card.pink   { border-left-color: #ec4899; }
+
+    /* 银行汇总区 */
+    .section-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 18px;
+      background: #4f46e5;
+      border-radius: 2px;
+    }
+
+    .bank-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .bank-card {
+      background: white;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      transition: box-shadow 0.2s;
+    }
+    .bank-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.13); }
+    .bank-card-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .bank-card-header .left { display: flex; align-items: center; gap: 12px; }
+    .bank-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .bank-name { font-size: 15px; font-weight: 600; }
+    .bank-id { font-size: 12px; color: #aaa; margin-top: 2px; }
+    .bank-total {
+      text-align: right;
+    }
+    .bank-total .num {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .bank-total .unit { font-size: 12px; color: #aaa; }
+    .bank-total .badge {
+      display: inline-block;
+      font-size: 11px;
+      background: #eef2ff;
+      color: #4f46e5;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 4px;
+    }
+    .toggle-icon {
+      font-size: 14px;
+      color: #bbb;
+      transition: transform 0.3s;
+      margin-left: 10px;
+    }
+    .toggle-icon.open { transform: rotate(180deg); }
+
+    /* 导入记录列表 */
+    .import-list {
+      border-top: 1px solid #f0f0f0;
+      display: none;
+    }
+    .import-list.open { display: block; }
+    .import-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #fafafa;
+      transition: background 0.15s;
+    }
+    .import-item:last-child { border-bottom: none; }
+    .import-item:hover { background: #fafbff; }
+    .import-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .import-desc {
+      flex: 1;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.6;
+    }
+    .import-count {
+      flex-shrink: 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #4f46e5;
+      background: #eef2ff;
+      padding: 2px 10px;
+      border-radius: 8px;
+    }
+    .import-count.unknown {
+      color: #aaa;
+      background: #f5f5f5;
+      font-weight: 400;
+      font-size: 12px;
+    }
+    .import-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #888;
+    }
+    .meta-item .icon { font-size: 13px; }
+    .files-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      background: #f0fdf4;
+      color: #22c55e;
+      border: 1px solid #bbf7d0;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .tag-env {
+      display: inline-block;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+    }
+    .tag-prod { background: #fef3c7; color: #d97706; }
+    .tag-test { background: #ede9fe; color: #7c3aed; }
+
+    /* 新增记录区 */
+    .add-section {
+      background: white;
+      border-radius: 14px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      margin-bottom: 32px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 13px; color: #555; font-weight: 500; }
+    .form-group input, .form-group select, .form-group textarea {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      color: #333;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: inherit;
+      background: #fafafa;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+      background: white;
+    }
+    .form-group textarea { resize: vertical; min-height: 72px; }
+    .form-group.span2 { grid-column: span 2; }
+    .btn-add {
+      margin-top: 16px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: white;
+      border: none;
+      padding: 10px 28px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      font-family: inherit;
+    }
+    .btn-add:hover { opacity: 0.9; }
+    .btn-add:active { transform: scale(0.98); }
+
+    /* 全量明细表格 */
+    .table-section {
+      background: white;
+      border-radius: 14px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      margin-bottom: 32px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      padding: 12px 14px;
+      text-align: left;
+      background: #f8f9ff;
+      color: #555;
+      font-weight: 600;
+      border-bottom: 2px solid #e5e7eb;
+      white-space: nowrap;
+    }
+    tbody tr:hover { background: #fafbff; }
+    tbody td {
+      padding: 11px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+      max-width: 260px;
+    }
+    .count-cell {
+      font-weight: 700;
+      color: #4f46e5;
+      white-space: nowrap;
+    }
+    .count-cell.unknown { color: #bbb; font-weight: 400; }
+    .time-cell { color: #888; white-space: nowrap; }
+    .person-cell { color: #555; font-size: 12px; }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .main { padding: 16px 12px; }
+      .bank-grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.span2 { grid-column: span 1; }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: #1a1a2e;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .search-bar input {
+      flex: 1;
+      min-width: 200px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      background: white;
+      transition: border-color 0.2s;
+    }
+    .search-bar input:focus { outline: none; border-color: #4f46e5; }
+
+    /* 数量来源标签 */
+    .count-src {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .src-text { background: #dcfce7; color: #15803d; }   /* 原文记载 - 绿 */
+    .src-calc { background: #fef9c3; color: #a16207; }   /* 计算所得 - 黄 */
+    .src-name { background: #e0e7ff; color: #4338ca; }   /* 名称字段 - 蓝 */
+
+    /* 表格数量来源列 */
+    .src-badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* 删除按钮 */
+    .btn-del {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      border: none;
+      background: transparent;
+      color: #ccc;
+      font-size: 14px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+      line-height: 1;
+      padding: 0;
+    }
+    .btn-del:hover { background: #fee2e2; color: #ef4444; }
+    .import-item:hover .btn-del { color: #ddd; }
+    .btn-del-td {
+      width: 32px;
+      text-align: center;
+      padding: 0 4px !important;
+    }
+
+    /* 最近删除面板 */
+    .trash-section {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    .trash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .trash-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .trash-badge {
+      font-size: 12px;
+      background: #fee2e2;
+      color: #ef4444;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .trash-toggle {
+      font-size: 12px;
+      color: #9ca3af;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .trash-toggle:hover { background: #f3f4f6; }
+    .trash-body { margin-top: 16px; }
+    .trash-empty { color: #bbb; font-size: 13px; text-align: center; padding: 16px 0; }
+    .trash-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #f3f4f6;
+      margin-bottom: 8px;
+      background: #fafafa;
+      transition: background 0.15s;
+    }
+    .trash-item:hover { background: #f9fafb; }
+    .trash-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .trash-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .trash-item-desc {
+      font-size: 12px;
+      color: #9ca3af;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+    .trash-item-meta {
+      font-size: 11px;
+      color: #bbb;
+      white-space: nowrap;
+      flex-shrink: 0;
+      text-align: right;
+    }
+    .btn-restore {
+      flex-shrink: 0;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #d1fae5;
+      background: #ecfdf5;
+      color: #059669;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-restore:hover { background: #d1fae5; }
+
+    /* KM同步面板 */
+    .sync-section {
+      background: white;
+      border-radius: 14px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      margin-bottom: 32px;
+      border: 2px dashed #e0e7ff;
+    }
+    .sync-section.has-result { border-color: #4f46e5; }
+    .sync-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .sync-steps {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 14px;
+      line-height: 1.8;
+    }
+    .sync-steps span { color: #4f46e5; font-weight: 600; }
+    .sync-textarea {
+      width: 100%;
+      min-height: 120px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #333;
+      resize: vertical;
+      background: #fafafa;
+      transition: border-color 0.2s;
+    }
+    .sync-textarea:focus { outline: none; border-color: #4f46e5; background: white; }
+    .sync-btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .btn-sync {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.2s;
+    }
+    .btn-sync:hover { opacity: 0.88; }
+    .btn-sync-clear {
+      background: #f3f4f6;
+      color: #555;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .sync-result { margin-top: 20px; }
+    .sync-result-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #1a1a2e;
+    }
+    .sync-new-item {
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      background: #eef2ff;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .sync-new-item.dupe { background: #f9fafb; border-color: #e5e7eb; opacity: 0.6; }
+    .sync-new-body { flex: 1; }
+    .sync-new-body .sn-top { font-size: 13px; color: #333; line-height: 1.7; }
+    .sync-new-body .sn-meta { font-size: 12px; color: #888; margin-top: 4px; }
+    .btn-import-one {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+    .btn-import-one:hover { background: #4338ca; }
+    .btn-import-one:disabled { background: #a5b4fc; cursor: default; }
+    .btn-import-all {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-import-all:hover { background: #16a34a; }
+    .sync-empty { color: #22c55e; font-size: 14px; font-weight: 500; padding: 10px 0; }
+    .sync-toggle {
+      font-size: 13px;
+      color: #4f46e5;
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      font-family: inherit;
+      padding: 0;
+    }
+    .sync-collapsed { display: none; }
+
+  /* 编辑 Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white;
+    border-radius: 16px;
+    padding: 28px 28px 24px;
+    width: 560px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    position: relative;
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .modal-close {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #bbb;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .modal-close:hover { color: #ef4444; }
+  .modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 18px;
+  }
+  .modal-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .modal-group.span2 { grid-column: span 2; }
+  .modal-group label {
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+  }
+  .modal-group input,
+  .modal-group select,
+  .modal-group textarea {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #333;
+    background: #fafafa;
+    transition: border-color 0.2s;
+  }
+  .modal-group input:focus,
+  .modal-group select:focus,
+  .modal-group textarea:focus { outline: none; border-color: #4f46e5; background: white; }
+  .modal-group textarea { resize: vertical; min-height: 64px; }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-modal-cancel {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-modal-cancel:hover { background: #f3f4f6; }
+  .btn-modal-save {
+    padding: 8px 22px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-modal-save:hover { opacity: 0.88; }
+  /* 编辑按钮 */
+  .btn-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: #ccc;
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
+    padding: 0;
+  }
+  .btn-edit:hover { background: #e0e7ff; color: #4f46e5; }
+  .import-item:hover .btn-edit { color: #ddd; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 API 导入数据汇总看板</h1>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:6px;">
+    <p style="margin:0;">银行/企业 API 商户数据导入记录，支持新增并自动汇总</p>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="saveStatus" style="font-size:12px;">○ 使用内置数据</span>
+      <button onclick="exportHTML()" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);background:rgba(79,70,229,0.5);color:white;cursor:pointer;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='rgba(79,70,229,0.75)'" onmouseout="this.style.background='rgba(79,70,229,0.5)'">⬇ 导出最新HTML</button>
+      <button onclick="pushToGitHub()" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);background:rgba(34,197,94,0.45);color:white;cursor:pointer;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='rgba(34,197,94,0.7)'" onmouseout="this.style.background='rgba(34,197,94,0.45)'">☁ 同步到GitHub</button>
+      <button onclick="resetToInitial()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">↺ 重置初始数据</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑 Modal -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeEditModal()">×</button>
+    <div class="modal-title">✏️ 编辑导入记录</div>
+    <input type="hidden" id="editId" />
+    <div class="modal-grid">
+      <div class="modal-group">
+        <label>企业ID</label>
+        <input type="text" id="editBankId" placeholder="如：67594" />
+      </div>
+      <div class="modal-group">
+        <label>企业名称 *</label>
+        <input type="text" id="editBankName" placeholder="如：民生银行" />
+      </div>
+      <div class="modal-group">
+        <label>导入数量</label>
+        <input type="number" id="editCount" placeholder="空则表示未知" />
+      </div>
+      <div class="modal-group">
+        <label>环境</label>
+        <select id="editEnv" onchange="onEnvChange(this)">
+          <option value="prod">正式</option>
+          <option value="test">测试</option>
+        </select>
+        <div id="envHint" style="font-size:11px;color:#f59e0b;margin-top:4px;display:none;">⚠️ 将同步修改企业ID和名称</div>
+      </div>
+      <div class="modal-group">
+        <label>提交人</label>
+        <input type="text" id="editSubmitter" />
+      </div>
+      <div class="modal-group">
+        <label>提交时间</label>
+        <input type="text" id="editSubmitTime" placeholder="如：2026-05-25" />
+      </div>
+      <div class="modal-group">
+        <label>导入人</label>
+        <input type="text" id="editImporter" />
+      </div>
+      <div class="modal-group">
+        <label>导入时间</label>
+        <input type="text" id="editImportTime" placeholder="如：2026-05-25" />
+      </div>
+      <div class="modal-group">
+        <label>文件数</label>
+        <input type="number" id="editFileCount" placeholder="0" min="0" />
+      </div>
+      <div class="modal-group">
+        <label>数量注释</label>
+        <input type="text" id="editCountNote" placeholder="可空" />
+      </div>
+      <div class="modal-group span2">
+        <label>导入说明 / 描述</label>
+        <textarea id="editDesc" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeEditModal()"> 取消</button>
+      <button class="btn-modal-save" onclick="saveEdit()">✓ 保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- 顶部统计 -->
+  <div class="stat-cards" id="statCards"></div>
+
+  <!-- 银行汇总卡片 -->
+  <div class="section-title">各企业导入汇总</div>
+  <div class="bank-grid" id="bankGrid"></div>
+
+  <!-- 最近删除记录 -->
+  <div class="trash-section" id="trashSection" style="display:none;">
+    <div class="trash-header" onclick="toggleTrashPanel()">
+      <div class="trash-header-left">
+        🗑️ 最近删除的记录
+        <span class="trash-badge" id="trashBadge">0 条</span>
+      </div>
+      <button class="trash-toggle" id="trashToggleBtn">收起 ▲</button>
+    </div>
+    <div class="trash-body" id="trashBody"></div>
+  </div>
+
+  <!-- KM同步 -->
+  <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>🔄 从KM同步新增记录</span>
+    <button class="sync-toggle" onclick="toggleSyncPanel()">收起 ▲</button>
+  </div>
+  <div class="sync-section" id="syncPanel">
+    <div class="sync-steps">
+      <b>使用步骤：</b><br>
+      1. 打开 <span><a href="https://km.sankuai.com/collabpage/1832905193" target="_blank">KM文档</a></span>，全选页面内容（<span>Ctrl+A</span>），复制（<span>Ctrl+C</span>）<br>
+      2. 点击下方文本框，粘贴（<span>Ctrl+V</span>）<br>
+      3. 点击「<span>解析并对比</span>」，自动识别新增条目
+    </div>
+    <textarea class="sync-textarea" id="syncInput" placeholder="把KM页面内容粘贴到这里..."></textarea>
+    <div class="sync-btn-row">
+      <button class="btn-sync" onclick="parseAndSync()">🔍 解析并对比</button>
+      <button class="btn-sync-clear" onclick="clearSync()">清空</button>
+    </div>
+    <div class="sync-result" id="syncResult"></div>
+  </div>
+
+  <!-- 新增记录 -->
+  <div class="section-title">新增导入记录</div>
+  <div class="add-section">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>企业名称 *</label>
+        <select id="newBank">
+          <option value="">— 选择已有企业 —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>或输入新企业名称</label>
+        <input type="text" id="newBankCustom" placeholder="如：新银行-测试企业" />
+      </div>
+      <div class="form-group">
+        <label>企业ID</label>
+        <input type="text" id="newBankId" placeholder="如：99999" />
+      </div>
+      <div class="form-group">
+        <label>导入数量 *</label>
+        <input type="number" id="newCount" placeholder="如：10000" min="0" />
+      </div>
+      <div class="form-group">
+        <label>提交时间</label>
+        <input type="datetime-local" id="newSubmitTime" />
+      </div>
+      <div class="form-group">
+        <label>导入时间</label>
+        <input type="datetime-local" id="newImportTime" />
+      </div>
+      <div class="form-group">
+        <label>提交人</label>
+        <input type="text" id="newSubmitter" placeholder="如：张三" />
+      </div>
+      <div class="form-group">
+        <label>导入人</label>
+        <input type="text" id="newImporter" placeholder="如：李四" />
+      </div>
+      <div class="form-group span2">
+        <label>数据说明</label>
+        <textarea id="newDesc" placeholder="如：全国4星以上商户，城市：北京、上海"></textarea>
+      </div>
+      <div class="form-group">
+        <label>文件数量</label>
+        <input type="number" id="newFileCount" placeholder="如：3" min="0" />
+      </div>
+      <div class="form-group">
+        <label>环境</label>
+        <select id="newEnv">
+          <option value="prod">正式</option>
+          <option value="test">测试</option>
+          <option value="">不限</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addRecord()">＋ 添加导入记录</button>
+  </div>
+
+  <!-- 全量明细表格 -->
+  <div class="section-title">全量导入明细</div>
+  <div class="table-section">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="🔍 搜索企业名称、导入说明..." oninput="renderTable()" />
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>企业ID</th>
+          <th>企业名称</th>
+          <th>导入说明</th>
+          <th>导入数量</th>
+          <th>提交人</th>
+          <th>提交时间</th>
+          <th>导入人</th>
+          <th>导入时间</th>
+          <th>文件数</th>
+          <th style="width:32px;"></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">✅ 记录已添加</div>
+
+<script>
+// ===================== 原始数据 =====================
+// 正式↔测试 企业ID对照表
+// 格式: prod_bankId -> { testId, prodName, testName }
+const ENV_SWITCH_MAP = [
+  { prodId: '53248', testId: '53249', prodName: '工行e生活（正式）', testName: '工行e生活（测试）' },
+  { prodId: '54153', testId: '54154', prodName: '浦发銀行ToC补贴（正式）', testName: '浦发銀行ToC补贴（测试）' },
+  { prodId: '67594', testId: '67593', prodName: '民生信用卡中心（正式）', testName: '民生信用卡中心（测试）' },
+  { prodId: '81160', testId: '81158', prodName: '兴业銀行', testName: '兴业銀行-测试企业' },
+  { prodId: '73151', testId: '73149', prodName: '銀联云闪付-正式', testName: '銀联云闪付-测试' },
+];
+
+// 根据bankId查找对应的切换目标
+function getEnvSwitchTarget(bankId, targetEnv) {
+  for (const m of ENV_SWITCH_MAP) {
+    if (targetEnv === 'test' && m.prodId === bankId) return { id: m.testId, name: m.testName };
+    if (targetEnv === 'prod' && m.testId === bankId) return { id: m.prodId, name: m.prodName };
+  }
+  return null;
+}
+
+const BANK_COLORS = {
+  '53248': { icon: '🏦', color: '#f97316', bg: '#fff7ed' },
+  '54153': { icon: '🏧', color: '#3b82f6', bg: '#eff6ff' },
+  '68330': { icon: '🏬', color: '#22c55e', bg: '#f0fdf4' },
+  '73149': { icon: '💳', color: '#a855f7', bg: '#faf5ff' },
+  '73151': { icon: '💳', color: '#ec4899', bg: '#fdf2f8' },
+  '67593': { icon: '🏛️', color: '#14b8a6', bg: '#f0fdfa' },
+  '67594': { icon: '🏛️', color: '#0ea5e9', bg: '#f0f9ff' },
+  '81158': { icon: '🔷', color: '#f59e0b', bg: '#fffbeb' },
+  '81160': { icon: '🔷', color: '#ef4444', bg: '#fef2f2' },
+};
+
+// countSource: 'text'=原文明确写了数量, 'calc'=原文有算式由我计算, 'name'=从企业名称字段提取, null=原文无数量记录
+let records = [
+  // 工行 53248 — 原文无数量记录
+  {
+    id: 1, bankId: '53248', bankName: '工行e生活（正式）',
+    desc: '全国4星以上 + 河南、湖北、北京、广东、上海、湖南',
+    count: null, countSource: null, submitter: '李娜', importer: '',
+    submitTime: '2023-08', importTime: '', files: 0, env: 'prod'
+  },
+  {
+    id: 2, bankId: '53248', bankName: '工行e生活（正式）',
+    desc: '工行门店供给需求1.xlsx',
+    count: 196, countSource: 'text', submitter: '郑惠芳', importer: '鲁虎军',
+    submitTime: '2023-08-18 10:50', importTime: '2023-08-18 20:50:47', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 3, bankId: '53248', bankName: '工行e生活（正式）',
+    desc: '工行到店供给需求2.xlsx',
+    count: 2017, countSource: 'text', submitter: '郑惠芳', importer: '鲁虎军',
+    submitTime: '2023-08-18 10:50', importTime: '2023-08-18 20:50:47', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 4, bankId: '53248', bankName: '工行e生活（正式）',
+    desc: '品牌商家-工行需导入商家.xlsx',
+    count: 204701, countSource: 'text', submitter: '郑惠芳', importer: '鲁虎军',
+    submitTime: '2023-08-21 19:55', importTime: '2023-08-22 20:50:47', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  // 浦发 54153 — 原文无数量记录
+  {
+    id: 5, bankId: '54153', bankName: '浦发银行ToC补贴（正式）',
+    desc: '特定商家-浦发需导入商家24051701.xlsx',
+    count: 5, countSource: 'text', submitter: '郑惠芳', importer: '鲁虎军',
+    submitTime: '2024-05-17 15:40', importTime: '2024-05-17 23:59', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  // 龙湖 68330 — 原文无数量记录
+  {
+    id: 6, bankId: '68330', bankName: '【正式】龙湖API项目',
+    desc: '龙湖商场数据240923.xlsx',
+    count: 347, countSource: 'text', submitter: '鲁虎军', importer: '鲁虎军',
+    submitTime: '2024-09-23 18:30', importTime: '2024-09-23 18:33', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  // 银联测试 73149 — 原文无数量记录
+  {
+    id: 7, bankId: '73149', bankName: '银联云闪付-测试',
+    desc: '银联20250303.xlsx',
+    count: 299, countSource: 'text', submitter: '鲁虎军', importer: '鲁虎军',
+    submitTime: '2025-03-03 15:15', importTime: '2025-03-03 15:15', files: 1, env: 'test',
+    countNote: '文件行数统计'
+  },
+  // 银联生产 73151 — 数量均来自企业名称字段/正文明确记载
+  {
+    id: 8, bankId: '73151', bankName: '银联云闪付-生产',
+    desc: '银联数据01.xlsx / 银联数据02.xlsx / 银联数据03.xlsx（共3个文件）',
+    count: 10000, countSource: 'name', submitter: '鲁虎军', importer: '鲁虎军',
+    submitTime: '2025-03-28 00:18', importTime: '2025-03-28 00:18', files: 3, env: 'prod',
+    countNote: '来自企业名称字段"累计10000条"'
+  },
+  {
+    id: 9, bankId: '73151', bankName: '银联云闪付-生产',
+    desc: '银联云闪付汇总（39+2.9）导1.xlsx ~ 导12.xlsx（共12个文件）',
+    count: 507255, countSource: 'name', submitter: '鲁虎军', importer: '鲁虎军',
+    submitTime: '2025-04-16 02:39', importTime: '2025-04-16 02:39', files: 12, env: 'prod',
+    countNote: '来自企业名称字段"累计507255条"'
+  },
+  {
+    id: 10, bankId: '73151', bankName: '银联云闪付-生产',
+    desc: '表1.xlsx ~ 表6.xlsx（共6个文件）',
+    count: 295335, countSource: 'name', submitter: '熊焰', importer: '鲁虎军',
+    submitTime: '2025-04-23 22:00', importTime: '2025-04-23 22:10', files: 6, env: 'prod',
+    countNote: '来自企业名称字段"累计295335条"'
+  },
+  {
+    id: 11, bankId: '73151', bankName: '银联云闪付-生产',
+    desc: '背景：补齐10W闭店商户；【银联API】10W商户-银联确认id导入底表1.xlsx / 底表2.xlsx / 底表3.xlsx',
+    count: 100000, countSource: 'text', submitter: '汤海燕', importer: '',
+    submitTime: '', importTime: '0320', files: 3, env: 'prod',
+    countNote: '原文明确写"数量：100000"'
+  },
+  // 民生测试 67593 — 原文无数量记录
+  {
+    id: 12, bankId: '67593', bankName: '民生信用卡中心（测试）',
+    desc: '民生20250811.xlsx',
+    count: 299, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-08-11 16:00', importTime: '2025-08-11 16:17', files: 1, env: 'test',
+    countNote: '文件行数统计'
+  },
+  // 民生正式 67594
+  {
+    id: 13, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '民生20250901.xlsx',
+    count: 299, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-09-01 11:00', importTime: '2025-09-01 11:05', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 14, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '民生火锅烧烤20251014.xlsx',
+    count: 28012, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-10-14 01:00', importTime: '2025-10-14 01:00', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 15, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '民生烧烤品类4.8万家20251015.xlsx + 民生品牌火锅20251015.xlsx（共2个文件）',
+    count: 51852, countSource: 'calc', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-10-15 19:00', importTime: '2025-10-15 19:00', files: 2, env: 'prod',
+    countNote: '48399 + 3453，文件行数统计'
+  },
+  {
+    id: 16, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '民生2025101701.xlsx ~ 民生2025101705.xlsx + 民生20251017.xlsx（共6个文件）',
+    count: 259792, countSource: 'calc', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-10-16 19:00', importTime: '2025-10-17 15:47', files: 6, env: 'prod',
+    countNote: '44515×5 + 17139 + 20078，文件行数统计'
+  },
+  {
+    id: 17, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '（导入）20151204-火锅Top品牌更新1.xlsx',
+    count: 3526, countSource: 'text', submitter: '', importer: '李凯希(Cathy Li)',
+    submitTime: '2025-12-04 16:45:34', importTime: '2025-12-04 16:45:41', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 18, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '1209-火锅失败部分重新导入.xlsx',
+    count: 41, countSource: 'text', submitter: '', importer: '李凯希(Cathy Li)',
+    submitTime: '2025-12-10 18:56:57', importTime: '2025-12-10 18:57:02', files: 1, env: 'prod',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 19, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '活动主题：团圆饭；维度：12家指定品牌全国门店；团圆饭导入商户id表.xlsx / id表（2）.xlsx / 提督id表.xlsx',
+    count: 608, countSource: 'text', submitter: '汤海燕', importer: '',
+    submitTime: '', importTime: '', files: 3, env: 'prod',
+    countNote: '原文明确写"导入数量：608"'
+  },
+  {
+    id: 20, bankId: '67594', bankName: '民生信用卡中心（正式）',
+    desc: '活动主题：奶茶咖啡饮品；维度：四星以上，指定城市TOP饮品品牌商户；咖啡奶茶饮品商户id表（3份）',
+    count: 109370, countSource: 'text', submitter: '汤海燕', importer: '',
+    submitTime: '20260203', importTime: '20260203', files: 3, env: 'prod',
+    countNote: '原文明确写"导入数量：109370"'
+  },
+  // 兴业测试 81158
+  {
+    id: 21, bankId: '81158', bankName: '兴业银行-测试企业',
+    desc: '兴业2025092401.xlsx + 兴业2025092402.xlsx（共2个文件）',
+    count: 1598, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-09-24 11:00', importTime: '2025-09-24 21:05', files: 2, env: 'test',
+    countNote: '原文明确写"共计：1598"'
+  },
+  {
+    id: 22, bankId: '81158', bankName: '兴业银行-测试企业',
+    desc: '兴业火锅20251015.xlsx',
+    count: 800, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-10-15 19:00', importTime: '2025-10-15 19:00', files: 1, env: 'test',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 23, bankId: '81158', bankName: '兴业银行-测试企业',
+    desc: '兴业测试企业2025111901.xlsx',
+    count: 100, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '2025-11-19 00:36', importTime: '2025-11-19 00:36', files: 1, env: 'test',
+    countNote: '文件行数统计'
+  },
+  {
+    id: 24, bankId: '81158', bankName: '兴业银行-测试企业',
+    desc: '兴业测试企业2025112001.xlsx',
+    count: 100, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '鲁虎军',
+    submitTime: '', importTime: '', files: 1, env: 'test',
+    countNote: '文件行数统计'
+  },
+  // 兴业正式 81160
+  {
+    id: 25, bankId: '81160', bankName: '兴业银行-正式企业',
+    desc: '1202-81160-上海10家.xlsx（文件名含数量"10家"）',
+    count: 10, countSource: 'text', submitter: '李凯希(Cathy Li)', importer: '李凯希(Cathy Li)',
+    submitTime: '2025-12-02 15:01:31', importTime: '', files: 1, env: 'prod',
+    countNote: '文件名含"上海10家"'
+  },
+  {
+    id: 26, bankId: '81160', bankName: '兴业银行-正式企业',
+    desc: '城市：天津市；维度：3.5-5星团购商户数据（无附件，未实际导入）',
+    count: 31019, countSource: 'text', submitter: '郑惠芳', importer: '',
+    submitTime: '2025-12-26 19:43:10', importTime: '', files: 0, env: 'prod',
+    countNote: '原文明确写"初始导入商户量：31019家"'
+  },
+  {
+    id: 27, bankId: '81160', bankName: '兴业银行-正式企业',
+    desc: '城市：广西（南宁、柳州、桂林、北海、钦州）+ 四川（成都等）12个城市；维度：4星以上团购；25078第一批兴业.xlsx / 50000兴业第二批.xlsx / 3192第三批兴业.xlsx',
+    count: 106470, countSource: 'text', submitter: '郑惠芳', importer: '',
+    submitTime: '2025-12-29 19:46:01', importTime: '', files: 3, env: 'prod',
+    countNote: '原文明确写"导入商户量：106470家"'
+  },
+  {
+    id: 28, bankId: '81160', bankName: '兴业银行-正式企业',
+    desc: '城市：福州、上海、北京；维度：4星及以上团购；0107第一批.xlsx / 0107第二批.xlsx / 0107第三批.xlsx',
+    count: 124464, countSource: 'text', submitter: '郑惠芳', importer: '汤海燕',
+    submitTime: '2026-01-07 20:19:47', importTime: '', files: 3, env: 'prod',
+    countNote: '原文明确写"导入商户数：124464"'
+  },
+  {
+    id: 29, bankId: '81160', bankName: '兴业银行',
+    desc: '城市：一省三城（南京、无锡、常州、南通、徐州、泰州、扬州、镇江、盐城、淮安、连云港、宿迁、宁波、武汉、西安）；维度：4星以上团购；分4个文件导入',
+    count: 85022, countSource: 'text', submitter: '汤海燕', importer: '汤海燕',
+    submitTime: '2026-02-02', importTime: '2026-02-02', files: 4, env: 'prod',
+    countNote: '原文明确写"导入商户数：85022"'
+  },
+  {
+    id: 30, bankId: '81160', bankName: '兴业银行',
+    desc: '福州分行商户需求：C+C日咖夜酒(温泉公园店)',
+    count: 1, countSource: 'text', submitter: '汤海燕', importer: '汤海燕',
+    submitTime: '2026-02-25', importTime: '2026-02-25', files: 0, env: 'prod',
+    countNote: '原文明确写"导入商户数：1"'
+  },
+  {
+    id: 31, bankId: '81160', bankName: '兴业银行',
+    desc: '福州分行+武汉（宜昌4城）分行商户需求；兴业福建到餐商户导入id底表0416.xlsx / 兴业宜昌4城商户导入id底表0416.xlsx',
+    count: 38265, countSource: 'text', submitter: '汤海燕', importer: '汤海燕',
+    submitTime: '2026-04-16', importTime: '2026-04-16', files: 2, env: 'prod',
+    countNote: '原文明确写"导入商户数：38265=31180（福州）+6455（武汉）"'
+  },
+  {
+    id: 32, bankId: '81160', bankName: '兴业银行',
+    desc: '北京分行需求；兴业北分新增商户需求星级id底表0428.xlsx / 底表（2）0428.xlsx / 品牌数据id底表0428.xlsx / 商圈商户id底表0428.xlsx',
+    count: 61647, countSource: 'calc', submitter: '汤海燕', importer: '汤海燕',
+    submitTime: '2026-04-28', importTime: '2026-04-28', files: 4, env: 'prod',
+    countNote: '原文写"50000+5125+4632+1890"，合计61647'
+  },
+  {
+    id: 33, bankId: '81160', bankName: '兴业银行',
+    desc: '上海分行需求；兴业上海全量商户导入id表0514.xlsx',
+    count: 42597, countSource: 'text', submitter: '', importer: '',
+    submitTime: '', importTime: '', files: 1, env: 'prod',
+    countNote: '原文明确写"导入商户：42597"'
+  },
+  // 民生正式 67594 — 新增
+  {
+    id: 34, bankId: '67594', bankName: '民生银行',
+    desc: 'poi_id_前5万.xlsx + poi_id_5万后.xlsx（共2个文件）',
+    count: 90313, countSource: 'text', submitter: '孙佳鑫', importer: '汤海燕',
+    submitTime: '2026-05-20', importTime: '2026-05-20', files: 2, env: 'prod',
+    countNote: '原文明确写"导入商户：90313"'
+  },
+  {
+    id: 35, bankId: '67594', bankName: '民生银行',
+    desc: '30家',
+    count: 30, countSource: 'text', submitter: '孙佳鑫', importer: '孙佳鑫',
+    submitTime: '2026-05-25', importTime: '2026-05-25', files: 0, env: 'prod',
+    countNote: '原文明确写"30家"'
+  },
+];
+
+let nextId = 36;
+let trashRecords = []; // 最近删除，最多保留30条
+let trashPanelOpen = true;
+
+// ===================== 本地存储 =====================
+const LS_KEY      = 'api_import_records_v1';
+const LS_TRASH    = 'api_import_trash_v1';
+const LS_NEXT_ID  = 'api_import_nextid_v1';
+
+// 原始内置数据的快照（用于重置）
+const INITIAL_RECORDS  = records.map(r => ({ ...r }));
+const INITIAL_NEXT_ID  = nextId;
+
+function saveToLocal() {
+  try {
+    localStorage.setItem(LS_KEY,     JSON.stringify(records));
+    localStorage.setItem(LS_TRASH,   JSON.stringify(trashRecords));
+    localStorage.setItem(LS_NEXT_ID, String(nextId));
+  } catch(e) { /* 存储失败静默处理 */ }
+  updateSaveStatus();
+}
+
+function loadFromLocal() {
+  try {
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) {
+      records = JSON.parse(saved);
+      const trash = localStorage.getItem(LS_TRASH);
+      if (trash) trashRecords = JSON.parse(trash);
+      const nid = localStorage.getItem(LS_NEXT_ID);
+      if (nid) nextId = parseInt(nid, 10);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function resetToInitial() {
+  if (!confirm('确认重置为初始内置数据？\n\n所有本地修改（编辑、新增、删除）将全部丢失，不可恢复。')) return;
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_TRASH);
+  localStorage.removeItem(LS_NEXT_ID);
+  records = INITIAL_RECORDS.map(r => ({ ...r }));
+  trashRecords = [];
+  nextId = INITIAL_NEXT_ID;
+  renderAll();
+  renderTrash();
+  updateSaveStatus();
+  showToast('✅ 已重置为初始数据');
+}
+
+// GitHub API 配置
+const GH_REPO  = 'tryanglabandon/api-import-dashboard';
+const GH_PATH  = 'index.html';
+const GH_PAT_KEY = 'gh_pat_token';
+
+function buildExportHTML() {
+  const src = document.documentElement.outerHTML;
+  const recJson   = JSON.stringify(records, null, 2);
+  const trashJson = JSON.stringify(trashRecords, null, 2);
+  const nextIdStr = String(nextId);
+  let out = src.replace(
+    /let records = \[[\s\S]*?\];(\s*\n\s*let nextId)/,
+    `let records = ${recJson};$1`
+  );
+  out = out.replace(/let nextId = \d+;/, `let nextId = ${nextIdStr};`);
+  out = out.replace(
+    /let trashRecords = \[[\s\S]*?\];/,
+    `let trashRecords = ${trashJson};`
+  );
+  return out;
+}
+
+async function pushToGitHub() {
+  let pat = localStorage.getItem(GH_PAT_KEY) || '';
+  if (!pat) {
+    pat = prompt('请输入 GitHub Personal Access Token（PAT）\n仅首次需要输入，之后会记住\n\n生成地址：https://github.com/settings/tokens\n（需要勾选 repo 权限）');
+    if (!pat) return;
+    localStorage.setItem(GH_PAT_KEY, pat.trim());
+    pat = pat.trim();
+  }
+
+  showToast('⏳ 同步中...');
+
+  try {
+    // 1. 获取当前文件的 SHA
+    const metaRes = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+      headers: { Authorization: `token ${pat}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!metaRes.ok) throw new Error(`获取文件SHA失败: ${metaRes.status}`);
+    const meta = await metaRes.json();
+    const sha  = meta.sha;
+
+    // 2. 构建新HTML内容并 base64 编码
+    const content = buildExportHTML();
+    const b64 = btoa(unescape(encodeURIComponent(content)));
+
+    // 3. 提交更新
+    const pushRes = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${pat}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `data: sync from browser ${new Date().toLocaleString('zh-CN')}`,
+        content: b64,
+        sha
+      })
+    });
+    if (!pushRes.ok) {
+      const err = await pushRes.json();
+      throw new Error(err.message || pushRes.status);
+    }
+    showToast('✅ 已同步到GitHub！约1分钟后GitHub Pages即展示最新数据');
+  } catch(e) {
+    console.error(e);
+    if (e.message.includes('401') || e.message.includes('Bad credentials')) {
+      localStorage.removeItem(GH_PAT_KEY);
+      showToast('❌ Token 错误或失效，已清除，请重试');
+    } else {
+      showToast(`❌ 同步失败：${e.message}`);
+    }
+  }
+}
+
+// 导出当前数据为新HTML文件（下载到本地）
+function exportHTML() {
+  const out = buildExportHTML();
+  const blob = new Blob([out], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'api-import-dashboard.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('✅ 已导出最新HTML，推送到GitHub后全平台可用');
+}
+
+function updateSaveStatus() {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  const hasSaved = !!localStorage.getItem(LS_KEY);
+  if (hasSaved) {
+    const t = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    el.innerHTML = `<span style="color:#22c55e;">● 本地已保存</span> <span style="color:#9ca3af;font-size:11px;">${t}</span>`;
+  } else {
+    el.innerHTML = `<span style="color:#9ca3af;">○ 使用内置数据</span>`;
+  }
+}
+
+// ===================== 数据处理 =====================
+function getBankSummary() {
+  const map = {};
+  records.forEach(r => {
+    const key = r.bankId || r.bankName;
+    if (!map[key]) {
+      map[key] = {
+        bankId: r.bankId,
+        bankName: r.bankName,
+        records: [],
+        totalKnown: 0,
+        unknownCount: 0,
+      };
+    }
+    map[key].records.push(r);
+    if (r.count !== null && r.count !== undefined) {
+      map[key].totalKnown += r.count;
+    } else {
+      map[key].unknownCount++;
+    }
+  });
+  return Object.values(map);
+}
+
+// ===================== 渲染统计卡片 =====================
+function renderStats() {
+  const summary = getBankSummary();
+  const totalRecords = records.length;
+  const totalKnownCount = records.reduce((s, r) => s + (r.count || 0), 0);
+  const totalBanks = summary.length;
+  const unknownCount = records.filter(r => r.count === null || r.count === undefined).length;
+
+  const statsHtml = `
+    <div class="stat-card blue">
+      <div class="label">企业数量</div>
+      <div class="value">${totalBanks}</div>
+      <div class="sub">家企业/银行</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">导入总批次</div>
+      <div class="value">${totalRecords}</div>
+      <div class="sub">条记录，其中${unknownCount}条数量未知</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">已知导入总数量</div>
+      <div class="value">${totalKnownCount.toLocaleString()}</div>
+      <div class="sub">条商户数据</div>
+    </div>
+  `;
+  document.getElementById('statCards').innerHTML = statsHtml;
+}
+
+// ===================== 渲染银行卡片 =====================
+function getEnvTag(env) {
+  if (env === 'prod') return '<span class="tag-env tag-prod">正式</span>';
+  if (env === 'test') return '<span class="tag-env tag-test">测试</span>';
+  return '';
+}
+
+function renderBankGrid() {
+  const summary = getBankSummary();
+  const container = document.getElementById('bankGrid');
+
+  const html = summary.map(bank => {
+    const style = BANK_COLORS[bank.bankId] || { icon: '🏦', color: '#6b7280', bg: '#f9fafb' };
+    const totalStr = bank.totalKnown > 0
+      ? bank.totalKnown.toLocaleString()
+      : (bank.unknownCount > 0 ? '—' : '0');
+    const badge = `${bank.records.length} 批次导入`;
+
+      const itemsHtml = bank.records.map((r, idx) => {
+      let countHtml;
+      if (r.count !== null && r.count !== undefined) {
+        const sourceLabel = r.countSource === 'text'  ? '<span class="count-src src-text">原文记载</span>'
+                          : r.countSource === 'calc'  ? '<span class="count-src src-calc">计算所得</span>'
+                          : r.countSource === 'name'  ? '<span class="count-src src-name">名称字段</span>'
+                          : '';
+        countHtml = `<div style="text-align:right;flex-shrink:0;">
+          <span class="import-count">${r.count.toLocaleString()} 条</span>
+          <div style="margin-top:3px;">${sourceLabel}</div>
+        </div>`;
+      } else {
+        countHtml = `<span class="import-count unknown">原文无数量记录</span>`;
+      }
+      const filesHtml = r.files > 0
+        ? `<span class="files-tag">📎 ${r.files} 个文件</span>` : '';
+      const noteHtml = r.countNote
+        ? `<span class="meta-item" style="color:#94a3b8;font-style:italic;"><span class="icon">💬</span>${r.countNote}</span>` : '';
+
+      return `
+        <div class="import-item">
+          <div class="import-item-top">
+            <div class="import-desc">
+              ${getEnvTag(r.env)}
+              <span style="font-size:12px;color:#bbb;margin-right:6px;">#${idx + 1}</span>
+              ${r.desc || '—'}
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px;flex-shrink:0;">
+              ${countHtml}
+              <button class="btn-edit" title="编辑此记录" onclick="openEditModal(${r.id}, event)">✎</button>
+              <button class="btn-del" title="删除此记录" onclick="deleteRecord(${r.id}, event)">×</button>
+            </div>
+          </div>
+          <div class="import-meta">
+            ${r.submitTime ? `<span class="meta-item"><span class="icon">📅</span>提交：${r.submitTime}</span>` : ''}
+            ${r.importTime ? `<span class="meta-item"><span class="icon">✅</span>导入：${r.importTime}</span>` : ''}
+            ${r.submitter ? `<span class="meta-item"><span class="icon">👤</span>提交人：${r.submitter}</span>` : ''}
+            ${r.importer ? `<span class="meta-item"><span class="icon">🔧</span>导入人：${r.importer}</span>` : ''}
+            ${filesHtml}
+            ${noteHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const cardId = 'bank_' + (bank.bankId || bank.bankName.replace(/\s/g,''));
+
+    return `
+      <div class="bank-card">
+        <div class="bank-card-header" onclick="toggleBank('${cardId}')">
+          <div class="left">
+            <div class="bank-icon" style="background:${style.bg};color:${style.color};">${style.icon}</div>
+            <div>
+              <div class="bank-name">${bank.bankName}</div>
+              ${bank.bankId ? `<div class="bank-id">企业ID: ${bank.bankId}</div>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;">
+            <div class="bank-total">
+              <div class="num" style="color:${style.color};">${totalStr}</div>
+              <div class="unit">条（已知）</div>
+              <div class="badge">${badge}</div>
+            </div>
+            <div class="toggle-icon" id="icon_${cardId}">▼</div>
+          </div>
+        </div>
+        <div class="import-list" id="${cardId}">${itemsHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+
+  // 更新下拉选项
+  const sel = document.getElementById('newBank');
+  const existing = new Set();
+  sel.innerHTML = '<option value="">— 选择已有企业 —</option>';
+  summary.forEach(b => {
+    const key = b.bankId || b.bankName;
+    if (!existing.has(key)) {
+      existing.add(key);
+      const opt = document.createElement('option');
+      opt.value = b.bankName;
+      opt.textContent = `${b.bankName}${b.bankId ? ' (' + b.bankId + ')' : ''}`;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+function toggleBank(id) {
+  const list = document.getElementById(id);
+  const icon = document.getElementById('icon_' + id);
+  const isOpen = list.classList.contains('open');
+  list.classList.toggle('open', !isOpen);
+  icon.classList.toggle('open', !isOpen);
+}
+
+// ===================== 渲染全量表格 =====================
+function renderTable() {
+  const kw = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = kw
+    ? records.filter(r =>
+        (r.bankName || '').toLowerCase().includes(kw) ||
+        (r.desc || '').toLowerCase().includes(kw) ||
+        (r.bankId || '').toLowerCase().includes(kw)
+      )
+    : records;
+
+    const html = filtered.map((r, idx) => {
+    let countCell;
+    if (r.count !== null && r.count !== undefined) {
+      const srcTag = r.countSource === 'text' ? '<span class="src-badge src-text">原文</span>'
+                   : r.countSource === 'calc' ? '<span class="src-badge src-calc">计算</span>'
+                   : r.countSource === 'name' ? '<span class="src-badge src-name">名称</span>'
+                   : '';
+      countCell = `<td class="count-cell">${r.count.toLocaleString()}${srcTag}</td>`;
+    } else {
+      countCell = `<td class="count-cell unknown" title="原始记录未填写数量">—</td>`;
+    }
+    return `
+      <tr>
+        <td style="color:#bbb;">${idx + 1}</td>
+        <td style="color:#888;font-size:12px;">${r.bankId || '—'}</td>
+        <td><strong>${r.bankName}</strong>${r.env ? ' ' + getEnvTag(r.env) : ''}</td>
+        <td style="font-size:12px;color:#555;">${r.desc || '—'}</td>
+        ${countCell}
+        <td class="person-cell">${r.submitter || '—'}</td>
+        <td class="time-cell">${r.submitTime || '—'}</td>
+        <td class="person-cell">${r.importer || '—'}</td>
+        <td class="time-cell">${r.importTime || '—'}</td>
+        <td style="color:#aaa;font-size:12px;">${r.files > 0 ? r.files : '—'}</td>
+        <td class="btn-del-td"><button class="btn-edit" title="编辑" onclick="openEditModal(${r.id}, event)" style="margin-right:2px;">✎</button><button class="btn-del" title="删除" onclick="deleteRecord(${r.id}, event)">×</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('tableBody').innerHTML = html || '<tr><td colspan="10" style="text-align:center;color:#bbb;padding:24px;">无匹配记录</td></tr>';
+}
+
+// ===================== 新增记录 =====================
+function addRecord() {
+  const bankSel = document.getElementById('newBank').value;
+  const bankCustom = document.getElementById('newBankCustom').value.trim();
+  const bankName = bankCustom || bankSel;
+  const bankId = document.getElementById('newBankId').value.trim();
+  const countVal = document.getElementById('newCount').value.trim();
+  const count = countVal !== '' ? parseInt(countVal, 10) : null;
+  const submitTime = document.getElementById('newSubmitTime').value;
+  const importTime = document.getElementById('newImportTime').value;
+  const submitter = document.getElementById('newSubmitter').value.trim();
+  const importer = document.getElementById('newImporter').value.trim();
+  const desc = document.getElementById('newDesc').value.trim();
+  const fileCount = document.getElementById('newFileCount').value.trim();
+  const env = document.getElementById('newEnv').value;
+
+  if (!bankName) {
+    alert('请选择或输入企业名称！');
+    return;
+  }
+
+  const newRec = {
+    id: nextId++,
+    bankId: bankId || '',
+    bankName,
+    desc,
+    count,
+    submitter,
+    importer,
+    submitTime: submitTime ? submitTime.replace('T', ' ') : '',
+    importTime: importTime ? importTime.replace('T', ' ') : '',
+    files: fileCount ? parseInt(fileCount, 10) : 0,
+    env,
+  };
+  records.push(newRec);
+  saveToLocal();
+
+  // 重置表单
+  ['newBankCustom','newBankId','newCount','newSubmitTime','newImportTime',
+   'newSubmitter','newImporter','newDesc','newFileCount'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('newBank').value = '';
+  document.getElementById('newEnv').value = 'prod';
+
+  renderAll();
+  showToast('✅ 记录已添加，汇总已自动更新');
+}
+
+// ===================== KM同步功能 =====================
+let syncPanelOpen = true;
+function toggleSyncPanel() {
+  syncPanelOpen = !syncPanelOpen;
+  const panel = document.getElementById('syncPanel');
+  const btn = document.querySelector('.sync-toggle');
+  panel.style.display = syncPanelOpen ? '' : 'none';
+  btn.textContent = syncPanelOpen ? '收起 ▲' : '展开 ▼';
+}
+
+// 从粘贴的KM文本中解析（支持纯文本逐行格式和|表格格式）
+function parseKMText(text) {
+  const parsed = [];
+  const lines = text.split(/\n/).map(l => l.trim());
+
+  // ---- 判断格式：含|的表格格式 ----
+  const hasTable = lines.some(l => l.includes('|') && l.split('|').length >= 5);
+  if (hasTable) {
+    const tableLines = lines.filter(l => l.includes('|') && l.split('|').length >= 5);
+    for (const line of tableLines) {
+      const cols = line.split('|').map(c => c.trim()).filter((c, i, a) => i > 0 && i < a.length - 1);
+      if (cols.length < 4) continue;
+      if (cols[0] === '企业ID' || cols[0].startsWith('---')) continue;
+      const bankId    = cols[0].replace(/[^0-9]/g, '').trim();
+      const bankName  = cleanText(cols[1]);
+      const desc      = cleanText(cols[2]);
+      const submitter = cleanText(cols[3]);
+      const submitTime = cleanText(cols[4] || '');
+      const importer   = cleanText(cols[5] || '');
+      const importTime = cleanText(cols[6] || '');
+      if (!bankId && !bankName) continue;
+      parsed.push(buildRecord(bankId, bankName, desc, submitter, submitTime, importer, importTime));
+    }
+    return parsed;
+  }
+
+  // ---- 纯文本逐行格式（KM页面全选复制粘贴）----
+  // KM复制出来每列独占一行，格式为：
+  // 企业ID\n企业名称\n要导入数据(可多行)\n提交人\n提交时间\n导入人\n导入时间\n(下一条)...
+  // 策略：以"5位纯数字"行作为每条记录的分割点
+  const HEADERS = ['企业ID', '企业名称', '要导入的数据', '提交人', '提交时间', '导入人', '导入时间'];
+
+  // 找到所有企业ID行的索引（5位数字，去除表头）
+  const idPattern = /^\d{4,6}\s*$/;
+  const recordStarts = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (idPattern.test(lines[i]) && !HEADERS.includes(lines[i])) {
+      recordStarts.push(i);
+    }
+  }
+
+  if (recordStarts.length === 0) return parsed; // 无法识别
+
+  for (let ri = 0; ri < recordStarts.length; ri++) {
+    const start = recordStarts[ri];
+    const end = ri + 1 < recordStarts.length ? recordStarts[ri + 1] : lines.length;
+    const block = lines.slice(start, end).filter(l => l.length > 0 && !HEADERS.includes(l));
+
+    // block[0] = 企业ID, block[1] = 企业名称
+    // 其余行按顺序：desc内容(可多行) + 提交人 + 提交时间 + 导入人 + 导入时间
+    if (block.length < 2) continue;
+
+    const bankId   = block[0].trim().replace(/[^0-9]/g, '');
+    const bankName = cleanText(block[1] || '');
+    if (!bankId || !bankName) continue;
+
+    // 剩余字段：最后4个是 提交人、提交时间、导入人、导入时间（可能为空行已被过滤）
+    // 用一种宽容策略：时间行特征 = 含数字+/-或纯数字4位以上
+    const rest = block.slice(2);
+    // 从后往前识别时间和人名（最多4个尾部字段）
+    const timePattern = /^\d{4}[\/-]?\d{2}|^\d{4}$|^0\d{3}$|^\d{4}\/\d{2}/;
+    const tail = []; // [importTime, importer, submitTime, submitter] 倒序
+    let descLines = [...rest];
+
+    // 尝试从尾部剥离：导入时间、导入人、提交时间、提交人
+    const fields = ['importTime', 'importer', 'submitTime', 'submitter'];
+    for (const field of fields) {
+      if (descLines.length === 0) { tail.push(''); continue; }
+      const last = descLines[descLines.length - 1];
+      // 时间字段：含数字斜线或横线，或纯短字符串
+      if (field.includes('Time')) {
+        if (timePattern.test(last) || last.length <= 12) {
+          tail.push(last);
+          descLines = descLines.slice(0, -1);
+        } else {
+          tail.push('');
+        }
+      } else {
+        // 人名字段：不含中文标点、不含"导入/提交"等关键词，较短
+        if (last.length <= 20 && !last.includes('导入') && !last.includes('维度') && !last.includes('城市') && !last.includes('活动')) {
+          tail.push(cleanText(last));
+          descLines = descLines.slice(0, -1);
+        } else {
+          tail.push('');
+        }
+      }
+    }
+    tail.reverse(); // 还原为 [submitter, submitTime, importer, importTime]
+    const [submitter, submitTime, importer, importTime] = tail;
+    const desc = descLines.map(l => cleanText(l)).filter(Boolean).join('；');
+
+    parsed.push(buildRecord(bankId, bankName, desc, submitter, submitTime, importer, importTime));
+  }
+
+  return parsed;
+}
+
+// 构建记录对象（提取数量、文件数、环境）
+function buildRecord(bankId, bankName, desc, submitter, submitTime, importer, importTime) {
+  let count = null, countSource = null;
+
+  // 从描述中提取数量
+  const allText = bankName + ' ' + desc;
+  const countMatch =
+    allText.match(/(?:导入数量|导入商户数?|共计|累计)[：:\s]*(\d[\d,]*)/i) ||
+    allText.match(/数量[：:]\s*(\d[\d,]*)/i) ||
+    allText.match(/累计(\d+)条/);
+  if (countMatch) {
+    count = parseInt(countMatch[1].replace(/,/g, ''), 10);
+    countSource = 'text';
+  }
+  // 加法式：50000+5125+4632
+  if (!count) {
+    const calcMatch = desc.match(/(\d[\d,]*(?:\+\d[\d,]*){1,})/);
+    if (calcMatch) {
+      try {
+        const nums = calcMatch[1].split('+').map(n => parseInt(n.replace(/,/g, ''), 10));
+        if (nums.every(n => !isNaN(n) && n > 0)) {
+          count = nums.reduce((a, b) => a + b, 0);
+          countSource = 'calc';
+        }
+      } catch(e) {}
+    }
+  }
+  // 从企业名称提取
+  if (!count) {
+    const nameMatch = bankName.match(/累计(\d+)条/);
+    if (nameMatch) { count = parseInt(nameMatch[1], 10); countSource = 'name'; }
+  }
+
+  const files = (desc.match(/\.xlsx/gi) || []).length;
+  const env = (bankName.includes('测试') || bankName.toLowerCase().includes('test')) ? 'test' : 'prod';
+
+  return { bankId, bankName, desc, submitter, submitTime, importer, importTime, count, countSource, files, env };
+}
+
+function cleanText(s) {
+  return s
+    .replace(/!\[.*?\]\(.*?\)/g, '[附件]')  // markdown图片→[附件]
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // markdown链接→文字
+    .replace(/@([^|]+)\|[^)]+/g, '$1')       // @提及→用户名
+    .replace(/@/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// 判断两条记录是否重复（用企业ID+文件描述关键词）
+function isDuplicate(newRec) {
+  const newDesc = (newRec.desc || '').replace(/\[附件\]/g, '').replace(/\s/g, '').toLowerCase();
+  const newTime = (newRec.submitTime || '').replace(/[^0-9]/g, '').slice(0, 8);
+  
+  return records.some(r => {
+    if (r.bankId && newRec.bankId && r.bankId !== newRec.bankId) return false;
+    // 时间匹配
+    const rTime = (r.submitTime || '').replace(/[^0-9]/g, '').slice(0, 8);
+    if (newTime && rTime && newTime === rTime) return true;
+    // 描述关键词匹配：取desc前20个字符比较
+    const rDesc = (r.desc || '').replace(/\s/g, '').toLowerCase();
+    const shortNew = newDesc.slice(0, 15);
+    const shortR   = rDesc.slice(0, 15);
+    if (shortNew && shortR && shortNew === shortR) return true;
+    return false;
+  });
+}
+
+let pendingSyncItems = [];
+
+function parseAndSync() {
+  const text = document.getElementById('syncInput').value.trim();
+  if (!text) { alert('请先粘贴KM页面内容！'); return; }
+  
+  const parsed = parseKMText(text);
+  if (!parsed.length) {
+    document.getElementById('syncResult').innerHTML =
+      '<div style="color:#ef4444;font-size:14px;padding:10px 0;">❌ 未能识别到表格数据，请确认粘贴了完整的KM页面内容</div>';
+    return;
+  }
+  
+  const newItems = parsed.filter(p => !isDuplicate(p));
+  const dupeItems = parsed.filter(p => isDuplicate(p));
+  pendingSyncItems = newItems;
+  
+  let html = '';
+  
+  if (!newItems.length) {
+    html += '<div class="sync-empty">✅ 没有发现新增记录，数据已是最新！</div>';
+  } else {
+    html += `<div class="sync-result-title">发现 <span style="color:#4f46e5;font-size:16px;">${newItems.length}</span> 条新增记录（${dupeItems.length} 条已存在）：</div>`;
+    html += `<div style="margin-bottom:12px;"><button class="btn-import-all" onclick="importAllSync()">⬇ 一键导入全部 ${newItems.length} 条</button></div>`;
+    
+    newItems.forEach((item, idx) => {
+      const countStr = item.count !== null ? `<b style="color:#4f46e5;">${item.count.toLocaleString()} 条</b>` : '<span style="color:#bbb;">数量未知</span>';
+      html += `
+        <div class="sync-new-item" id="syncItem_${idx}">
+          <div class="sync-new-body">
+            <div class="sn-top">
+              <b>${item.bankName}</b>${item.bankId ? ` <span style="color:#aaa;font-size:11px;">(${item.bankId})</span>` : ''}
+              &nbsp;${countStr}
+            </div>
+            <div class="sn-meta">
+              📄 ${item.desc || '—'}
+            </div>
+            <div class="sn-meta">
+              ${item.submitTime ? '📅 提交：' + item.submitTime : ''}
+              ${item.submitter ? ' 👤 ' + item.submitter : ''}
+              ${item.importTime ? ' ✅ 导入：' + item.importTime : ''}
+              ${item.importer ? ' 🔧 ' + item.importer : ''}
+              ${item.files ? ' 📎 ' + item.files + '个文件' : ''}
+            </div>
+          </div>
+          <button class="btn-import-one" id="btnImport_${idx}" onclick="importOneSync(${idx})">导入</button>
+        </div>
+      `;
+    });
+  }
+  
+  if (dupeItems.length) {
+    html += `<div style="margin-top:14px;font-size:13px;color:#aaa;">已存在（跳过）：${dupeItems.map(d => d.bankName + ' ' + d.submitTime).join('、')}</div>`;
+  }
+  
+  document.getElementById('syncResult').innerHTML = html;
+  document.getElementById('syncPanel').classList.add('has-result');
+}
+
+function importOneSync(idx) {
+  const item = pendingSyncItems[idx];
+  if (!item) return;
+  records.push({
+    id: nextId++,
+    bankId: item.bankId || '',
+    bankName: item.bankName,
+    desc: item.desc,
+    count: item.count,
+    countSource: item.countSource,
+    submitter: item.submitter,
+    importer: item.importer,
+    submitTime: item.submitTime,
+    importTime: item.importTime,
+    files: item.files,
+    env: item.env,
+    countNote: item.countSource ? 'KM同步导入' : undefined,
+  });
+  const btn = document.getElementById('btnImport_' + idx);
+  const box = document.getElementById('syncItem_' + idx);
+  if (btn) { btn.disabled = true; btn.textContent = '已导入 ✓'; btn.style.background = '#22c55e'; }
+  if (box) box.classList.add('dupe');
+  renderAll();
+  showToast(`✅ 已导入：${item.bankName}`);
+}
+
+function importAllSync() {
+  let count = 0;
+  pendingSyncItems.forEach((item, idx) => {
+    const btn = document.getElementById('btnImport_' + idx);
+    if (btn && !btn.disabled) {
+      records.push({
+        id: nextId++,
+        bankId: item.bankId || '',
+        bankName: item.bankName,
+        desc: item.desc,
+        count: item.count,
+        countSource: item.countSource,
+        submitter: item.submitter,
+        importer: item.importer,
+        submitTime: item.submitTime,
+        importTime: item.importTime,
+        files: item.files,
+        env: item.env,
+        countNote: item.countSource ? 'KM同步导入' : undefined,
+      });
+      btn.disabled = true; btn.textContent = '已导入 ✓'; btn.style.background = '#22c55e';
+      const box = document.getElementById('syncItem_' + idx);
+      if (box) box.classList.add('dupe');
+      count++;
+    }
+  });
+  renderAll();
+  showToast(`✅ 已批量导入 ${count} 条记录`);
+}
+
+function clearSync() {
+  document.getElementById('syncInput').value = '';
+  document.getElementById('syncResult').innerHTML = '';
+  document.getElementById('syncPanel').classList.remove('has-result');
+  pendingSyncItems = [];
+}
+
+// ===================== 编辑记录 =====================
+function openEditModal(id, event) {
+  if (event) event.stopPropagation();
+  const r = records.find(rec => rec.id === id);
+  if (!r) return;
+  document.getElementById('editId').value = id;
+  document.getElementById('editBankId').value = r.bankId || '';
+  document.getElementById('editBankName').value = r.bankName || '';
+  document.getElementById('editCount').value = (r.count !== null && r.count !== undefined) ? r.count : '';
+  document.getElementById('editEnv').value = r.env || 'prod';
+  document.getElementById('editSubmitter').value = r.submitter || '';
+  document.getElementById('editSubmitTime').value = r.submitTime || '';
+  document.getElementById('editImporter').value = r.importer || '';
+  document.getElementById('editImportTime').value = r.importTime || '';
+  document.getElementById('editFileCount').value = r.files || '';
+  document.getElementById('editCountNote').value = r.countNote || '';
+  document.getElementById('editDesc').value = r.desc || '';
+  document.getElementById('editModal').classList.add('open');
+  // 存下打开时的原始环境和原始bankId，用于切换判断
+  document.getElementById('editModal').dataset.origEnv    = r.env || 'prod';
+  document.getElementById('editModal').dataset.origBankId = r.bankId || '';
+  document.getElementById('envHint').style.display = 'none';
+}
+
+function closeEditModal(event) {
+  if (event && event.target !== document.getElementById('editModal')) return;
+  document.getElementById('editModal').classList.remove('open');
+}
+
+function onEnvChange(sel) {
+  const newEnv  = sel.value;
+  const origEnv = document.getElementById('editModal').dataset.origEnv || '';
+  // 始终用打开弹窗时的原始 bankId 来查对照表
+  const origBankId = document.getElementById('editModal').dataset.origBankId || '';
+  const hint = document.getElementById('envHint');
+  if (newEnv === origEnv) { hint.style.display = 'none'; return; }
+  const target = getEnvSwitchTarget(origBankId, newEnv);
+  if (target) {
+    hint.textContent = `⚠️ 将自动切换至：${target.name}（ID: ${target.id}）`;
+    hint.style.color = '#f59e0b';
+    hint.style.display = 'block';
+  } else {
+    hint.textContent = '⚠️ 该企业无已知测试/正式对照，请手动修改企业ID和名称';
+    hint.style.color = '#9ca3af';
+    hint.style.display = 'block';
+  }
+}
+
+function saveEdit() {
+  const id = parseInt(document.getElementById('editId').value, 10);
+  const idx = records.findIndex(r => r.id === id);
+  if (idx === -1) return;
+  const countVal   = document.getElementById('editCount').value.trim();
+  const newEnv     = document.getElementById('editEnv').value;
+  const origEnv    = document.getElementById('editModal').dataset.origEnv    || '';
+  const origBankId = document.getElementById('editModal').dataset.origBankId || '';
+  let bankId   = document.getElementById('editBankId').value.trim();
+  let bankName = document.getElementById('editBankName').value.trim();
+  if (!bankName) { alert('企业名称不能为空！'); return; }
+
+  // 如果环境发生变化，用『原始 bankId』查对照表自动切换
+  if (newEnv !== origEnv) {
+    const target = getEnvSwitchTarget(origBankId, newEnv);
+    if (target) {
+      bankId   = target.id;
+      bankName = target.name;
+    }
+  }
+
+  records[idx] = {
+    ...records[idx],
+    bankId,
+    bankName,
+    count: countVal !== '' ? parseInt(countVal, 10) : null,
+    countSource: countVal !== '' ? 'text' : undefined,
+    env: newEnv,
+    submitter: document.getElementById('editSubmitter').value.trim(),
+    submitTime: document.getElementById('editSubmitTime').value.trim(),
+    importer: document.getElementById('editImporter').value.trim(),
+    importTime: document.getElementById('editImportTime').value.trim(),
+    files: parseInt(document.getElementById('editFileCount').value || '0', 10),
+    countNote: document.getElementById('editCountNote').value.trim(),
+    desc: document.getElementById('editDesc').value.trim(),
+  };
+  document.getElementById('editModal').classList.remove('open');
+  saveToLocal();
+
+  // 保存后自动展开该记录所属的銀行卡片
+  const cardId = 'bank_' + (bankId || bankName.replace(/\s/g, ''));
+  const openSet = new Set();
+  document.querySelectorAll('.import-list.open').forEach(el => openSet.add(el.id));
+  openSet.add(cardId); // 强制展开修改后的目标卡片
+
+  renderAll();
+
+  // renderAll 重建DOM后恢复+新展开
+  openSet.forEach(cid => {
+    const list = document.getElementById(cid);
+    const icon = document.getElementById('icon_' + cid);
+    if (list) list.classList.add('open');
+    if (icon) icon.classList.add('open');
+  });
+
+  showToast(`✅ 已保存：${bankName}`);
+}
+
+// ===================== 删除记录 =====================
+function deleteRecord(id, event) {
+  if (event) event.stopPropagation();
+  const rec = records.find(r => r.id === id);
+  if (!rec) return;
+  const label = `#${id} ${rec.bankName} ${rec.submitTime || ''}`;
+  if (!confirm(`确认删除这条记录？\n\n${label}\n\n删除后可在「最近删除」中恢复。`)) return;
+  records = records.filter(r => r.id !== id);
+  // 记入回收站（最多30条，先进先出）
+  trashRecords.unshift({ ...rec, deletedAt: new Date().toLocaleString('zh-CN') });
+  if (trashRecords.length > 30) trashRecords = trashRecords.slice(0, 30);
+  saveToLocal();
+  renderAll();
+  renderTrash();
+  showToast(`已删除：${rec.bankName} ${rec.submitTime || ''}  （可在「最近删除」中恢复）`);
+}
+
+// ===================== 回收站 =====================
+function renderTrash() {
+  const section = document.getElementById('trashSection');
+  const body = document.getElementById('trashBody');
+  const badge = document.getElementById('trashBadge');
+  if (trashRecords.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  badge.textContent = trashRecords.length + ' 条';
+  if (!trashPanelOpen) {
+    body.style.display = 'none';
+    return;
+  }
+  body.style.display = '';
+  body.innerHTML = trashRecords.map((r, i) => {
+    const countStr = r.count !== null && r.count !== undefined ? r.count.toLocaleString() + ' 条' : '数量未知';
+    return `
+      <div class="trash-item">
+        <div class="trash-item-info">
+          <div class="trash-item-name">${r.bankName}${r.submitTime ? ' · ' + r.submitTime : ''} <span style="color:#bbb;font-weight:400;font-size:11px;">${countStr}</span></div>
+          <div class="trash-item-desc">${r.desc || '—'}</div>
+        </div>
+        <div class="trash-item-meta">删除于<br>${r.deletedAt}</div>
+        <button class="btn-restore" onclick="restoreRecord(${i})">↩ 恢复</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function restoreRecord(index) {
+  const rec = trashRecords[index];
+  if (!rec) return;
+  // 恢复时重新分配id防止冲突
+  const restored = { ...rec };
+  delete restored.deletedAt;
+  restored.id = nextId++;
+  records.push(restored);
+  trashRecords.splice(index, 1);
+  saveToLocal();
+  renderAll();
+  renderTrash();
+  showToast(`已恢复：${restored.bankName} ${restored.submitTime || ''}`);
+}
+
+function toggleTrashPanel() {
+  trashPanelOpen = !trashPanelOpen;
+  const body = document.getElementById('trashBody');
+  const btn = document.getElementById('trashToggleBtn');
+  body.style.display = trashPanelOpen ? '' : 'none';
+  btn.textContent = trashPanelOpen ? '收起 ▲' : '展开 ▼';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function renderAll() {
+  // 保存当前展开状态
+  const openCards = new Set();
+  document.querySelectorAll('.import-list.open').forEach(el => openCards.add(el.id));
+
+  renderStats();
+  renderBankGrid();
+  renderTable();
+
+  // 恢复展开状态
+  openCards.forEach(id => {
+    const list = document.getElementById(id);
+    const icon = document.getElementById('icon_' + id);
+    if (list) list.classList.add('open');
+    if (icon) icon.classList.add('open');
+  });
+
+}
+
+// 初始化：优先读取本地存储
+loadFromLocal();
+renderAll();
+renderTrash();
+updateSaveStatus();
+</script>
+</body>
+</html>
